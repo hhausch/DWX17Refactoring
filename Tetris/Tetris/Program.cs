@@ -4,31 +4,43 @@ using System.Text;
 
 namespace Tetris
 {
-    internal static class Program
+    internal class Program
     {
-        private const int initialDropRate = 10; //300
-        private const int levelDropRateReductionFactor = 22;
-        private const int verticalGridSize = 23;
-        private const int horizontalGridSize = 10;
 
-        public static string sqr = "■";
-        public static int[,] grid = new int[verticalGridSize, horizontalGridSize];
-        public static int[,] droppedtetrominoeLocationGrid;
-        public static Stopwatch timer;
-        public static Stopwatch dropTimer;
-        public static Stopwatch inputTimer;
-        public static int dropTime;
-        public static int dropRate;
-        public static bool isDropped;
-        private static Tetrominoe tet;
-        private static Tetrominoe nexttet;
-        public static ConsoleKeyInfo key;
-        public static bool isKeyPressed;
-        public static int linesCleared;
-        public static int score;
-        public static int level;
+        public static Program Instance { get; } = new Program();
+        private readonly Config _Config;
+        private readonly Data _Data;
+        private readonly Statistics _Statistics;
+        private readonly UI _Ui;
+
+        public string sqr = "■";
+        public int[,] grid;
+        public int[,] droppedtetrominoeLocationGrid;
+        public Stopwatch timer;
+        public Stopwatch dropTimer;
+        public Stopwatch inputTimer;
+        public int dropTime;
+        public int dropRate;
+        public bool isDropped;
+        private Tetrominoe tet;
+        private Tetrominoe nexttet;
+        public ConsoleKeyInfo key;
+        public bool isKeyPressed;
+
+        private Program()
+        {
+            _Config = new Config();
+            _Data = new Data();
+            _Statistics = new Statistics();
+            _Ui = new UI(_Config, _Statistics);
+        }
 
         private static void Main()
+        {
+            Instance.Run();
+        }
+
+        private void Run()
         {
             var stayInLoop = true;
 
@@ -36,7 +48,8 @@ namespace Tetris
             {
                 Console.OutputEncoding = Encoding.UTF8;
 
-                SetupUI();
+                _Ui.Setup();
+
                 InitGameParameters();
 
                 WaitForStart();
@@ -47,19 +60,19 @@ namespace Tetris
 
                 Update();
 
-                stayInLoop = WaitForRestartOrCancel();
+                stayInLoop = Instance.WaitForRestartOrCancel();
             }
         }
 
-        private static void InitTetrominoe()
+        private void InitTetrominoe()
         {
-            nexttet = new Tetrominoe();
+            nexttet = new Tetrominoe(_Ui);
             tet = nexttet;
             tet.Spawn();
-            nexttet = new Tetrominoe();
+            nexttet = new Tetrominoe(_Ui);
         }
 
-        private static bool WaitForRestartOrCancel()
+        private bool WaitForRestartOrCancel()
         {
             Console.SetCursorPosition(0, 0);
             Console.WriteLine("Game Over \n Replay? (Y/N)");
@@ -76,57 +89,37 @@ namespace Tetris
             return false;
         }
 
-        private static void InitGameParameters()
+        private void InitGameParameters()
         {
-            droppedtetrominoeLocationGrid = new int[verticalGridSize, horizontalGridSize];
+            grid = new int[_Config.VerticalGridSize, _Config.HorizontalGridSize];
+            droppedtetrominoeLocationGrid = new int[_Config.VerticalGridSize, _Config.HorizontalGridSize];
             timer = new Stopwatch();
             dropTimer = new Stopwatch();
             inputTimer = new Stopwatch();
-            dropRate = initialDropRate;
+            dropRate = _Config.initialDropRate;
             isDropped = false;
             isKeyPressed = false;
-            linesCleared = 0;
-            score = 0;
-            level = 1;
+            _Statistics.LinesCleared = 0;
+            _Statistics.Score = 0;
+            _Statistics.Level = 1;
         }
 
-        private static void SetupTimer()
+        private void SetupTimer()
         {
             timer.Start();
             dropTimer.Start();
             var time = timer.ElapsedMilliseconds;
         }
 
-        private static void WaitForStart()
+        private void WaitForStart()
         {
             Console.SetCursorPosition(4, 5);
             Console.WriteLine("Press any key");
             Console.ReadKey(true);
         }
 
-        private static void SetupUI()
-        {
-            drawBorder();
-            Console.SetCursorPosition(25, 0);
-            Console.WriteLine("Level " + level);
-            Console.SetCursorPosition(25, 1);
-            Console.WriteLine("Score " + score);
-            Console.SetCursorPosition(25, 2);
-            Console.WriteLine("LinesCleared " + linesCleared);
-        }
 
-        private static void fillGrid()
-        {
-            for (var i = 0; i < 23; ++i)
-            {
-                Console.SetCursorPosition(1, i);
-                for (var j = 0; j < 10; j++)
-                    Console.Write(sqr);
-                Console.WriteLine();
-            }
-        }
-
-        private static void Update()
+        private void Update()
         {
             while (true) //Update Loop
             {
@@ -140,7 +133,7 @@ namespace Tetris
                 if (isDropped)
                 {
                     tet = nexttet;
-                    nexttet = new Tetrominoe();
+                    nexttet = new Tetrominoe(_Ui);
                     tet.Spawn();
 
                     isDropped = false;
@@ -155,70 +148,74 @@ namespace Tetris
             } //end Update
         }
 
-        private static void ClearBlock()
+        private void ClearBlock()
         {
             var combo = 0;
-            for (var i = 0; i < 23; i++)
+            for (var i = 0; i < _Config.VerticalGridSize; i++)
             {
                 int j;
-                for (j = 0; j < 10; j++)
+                for (j = 0; j < _Config.HorizontalGridSize; j++)
                     if (droppedtetrominoeLocationGrid[i, j] == 0)
                         break;
                 if (j == 10)
                 {
-                    linesCleared++;
+                    _Statistics.LinesCleared++;
                     combo++;
-                    for (j = 0; j < 10; j++)
+                    for (j = 0; j < _Config.HorizontalGridSize; j++)
                         droppedtetrominoeLocationGrid[i, j] = 0;
-                    var newdroppedtetrominoeLocationGrid = new int[23, 10];
+                    var newdroppedtetrominoeLocationGrid = new int[_Config.VerticalGridSize, _Config.HorizontalGridSize];
                     for (var k = 1; k < i; k++)
-                    for (var l = 0; l < 10; l++)
-                        newdroppedtetrominoeLocationGrid[k + 1, l] = droppedtetrominoeLocationGrid[k, l];
+                        for (var l = 0; l < _Config.HorizontalGridSize; l++)
+                            newdroppedtetrominoeLocationGrid[k + 1, l] = droppedtetrominoeLocationGrid[k, l];
                     for (var k = 1; k < i; k++)
-                    for (var l = 0; l < 10; l++)
-                        droppedtetrominoeLocationGrid[k, l] = 0;
-                    for (var k = 0; k < 23; k++)
-                    for (var l = 0; l < 10; l++)
-                        if (newdroppedtetrominoeLocationGrid[k, l] == 1)
-                            droppedtetrominoeLocationGrid[k, l] = 1;
+                        for (var l = 0; l < _Config.HorizontalGridSize; l++)
+                            droppedtetrominoeLocationGrid[k, l] = 0;
+                    for (var k = 0; k < _Config.VerticalGridSize; k++)
+                        for (var l = 0; l < _Config.HorizontalGridSize; l++)
+                            if (newdroppedtetrominoeLocationGrid[k, l] == 1)
+                                droppedtetrominoeLocationGrid[k, l] = 1;
                     Draw();
                 }
             }
             if (combo == 1)
-                score += 40 * level;
+                _Statistics.Score += 40 * _Statistics.Level;
             else if (combo == 2)
-                score += 100 * level;
+                _Statistics.Score += 100 * _Statistics.Level;
             else if (combo == 3)
-                score += 300 * level;
+            _Statistics.Score += 300 * _Statistics.Level;
             else if (combo > 3)
-                score += 300 * combo * level;
+                _Statistics.Score += 300 * combo * _Statistics.Level;
 
-            if (linesCleared < 5) level = 1;
-            else if (linesCleared < 10) level = 2;
-            else if (linesCleared < 15) level = 3;
-            else if (linesCleared < 25) level = 4;
-            else if (linesCleared < 35) level = 5;
-            else if (linesCleared < 50) level = 6;
-            else if (linesCleared < 70) level = 7;
-            else if (linesCleared < 90) level = 8;
-            else if (linesCleared < 110) level = 9;
-            else if (linesCleared < 150) level = 10;
+            if (_Statistics.LinesCleared < 5) _Statistics.Level = 1;
+            else if (_Statistics.LinesCleared < 10) _Statistics.Level = 2;
+            else if (_Statistics.LinesCleared < 15) _Statistics.Level = 3;
+            else if (_Statistics.LinesCleared < 25) _Statistics.Level = 4;
+            else if (_Statistics.LinesCleared < 35) _Statistics.Level = 5;
+            else if (_Statistics.LinesCleared < 50) _Statistics.Level = 6;
+            else if (_Statistics.LinesCleared < 70) _Statistics.Level = 7;
+            else if (_Statistics.LinesCleared < 90) _Statistics.Level = 8;
+            else if (_Statistics.LinesCleared < 110) _Statistics.Level = 9;
+            else if (_Statistics.LinesCleared < 150) _Statistics.Level = 10;
 
+            UpdateStatistics(combo);
 
+            dropRate = _Config.initialDropRate - _Config.levelDropRateReductionFactor * _Statistics.Level;
+        }
+
+        private void UpdateStatistics(int combo)
+        {
             if (combo > 0)
             {
                 Console.SetCursorPosition(25, 0);
-                Console.WriteLine("Level " + level);
+                Console.WriteLine("Level " + _Statistics.Level);
                 Console.SetCursorPosition(25, 1);
-                Console.WriteLine("Score " + score);
+                Console.WriteLine("Score " + _Statistics.Score);
                 Console.SetCursorPosition(25, 2);
-                Console.WriteLine("LinesCleared " + linesCleared);
+                Console.WriteLine("LinesCleared " + _Statistics.LinesCleared);
             }
-
-            dropRate = initialDropRate - levelDropRateReductionFactor * level;
         }
 
-        private static void Input()
+        private void Input()
         {
             if (Console.KeyAvailable)
             {
@@ -256,7 +253,7 @@ namespace Tetris
             }
         }
 
-        public static void Draw()
+        public void Draw()
         {
             for (var i = 0; i < 23; ++i)
             for (var j = 0; j < 10; j++)
@@ -274,18 +271,6 @@ namespace Tetris
             }
         }
 
-        public static void drawBorder()
-        {
-            for (var lengthCount = 0; lengthCount <= levelDropRateReductionFactor; ++lengthCount)
-            {
-                Console.SetCursorPosition(0, lengthCount);
-                Console.Write("*");
-                Console.SetCursorPosition(21, lengthCount);
-                Console.Write("*");
-            }
-            Console.SetCursorPosition(0, 23);
-            for (var widthCount = 0; widthCount <= 10; widthCount++)
-                Console.Write("*-");
-        }
+
     }
 }
